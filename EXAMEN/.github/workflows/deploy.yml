@@ -53,10 +53,15 @@ jobs:
                  '.containerDefinitions[0].image = $IMAGE' \
                  > updated-task-definition.json
 
+          # Eliminar los campos "status", "compatibilities", "requiresAttributes" de la definición de la tarea descargada
+          # Ya que no se permiten al registrar una nueva definición.
+          cat updated-task-definition.json \
+            | jq 'del(.status, .compatibilities, .requiresAttributes)' \
+            > final-task-definition.json
+
           # Registrar una nueva revisión de la definición de la tarea
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --family ${{ env.ECS_TASK_DEFINITION }} \
-            --cli-input-json file://updated-task-definition.json \
+            --cli-input-json file://final-task-definition.json \
             --query 'taskDefinition.taskDefinitionArn' \
             --output text)
 
@@ -64,5 +69,3 @@ jobs:
 
           # Actualizar el servicio ECS para usar la nueva revisión de la definición de la tarea
           aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_SERVICE }} --task-definition $NEW_TASK_DEF_ARN
-
-          
