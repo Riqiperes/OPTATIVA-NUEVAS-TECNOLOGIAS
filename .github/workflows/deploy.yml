@@ -40,5 +40,32 @@ jobs:
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Update ECS service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_SERVICE }} --force-new-deployment
+          # Descargar la definición de la tarea actual
+          aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION }} --query taskDefinition > task-definition.json
+
+          # Modificar la imagen en la definición de la tarea descargada
+          cat task-definition.json \
+            | jq --arg IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG" \
+                 '.containerDefinitions[0].image = $IMAGE' \
+                 > updated-task-definition.json
+
+          # Eliminar los campos "status", "compatibilities", "requiresAttributes" de la definición de la tarea descargada
+          # Ya que no se permiten al registrar una nueva definición.
+          cat updated-task-definition.json \
+            | jq 'del(.status, .compatibilities, .requiresAttributes)' \
+            > final-task-definition.json
+
+          # Registrar una nueva revisión de la definición de la tarea
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://final-task-definition.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "Registered new task definition: $NEW_TASK_DEF_ARN"
+
+          # Actualizar el servicio ECS para usar la nueva revisión de la definición de la tarea
+          aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_SERVICE }} --task-definition $NEW_TASK_DEF_ARN
