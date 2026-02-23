@@ -1,7 +1,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-COPY EXAMEN/app/public ./public
+COPY public ./public
 RUN npm install
 COPY . .
 RUN npm run build
