@@ -53,10 +53,9 @@ jobs:
                  '.containerDefinitions[0].image = $IMAGE' \
                  > updated-task-definition.json
 
-          # Eliminar los campos "status", "compatibilities", "requiresAttributes" de la definición de la tarea descargada
-          # Ya que no se permiten al registrar una nueva definición.
+          # Eliminar los campos no permitidos al registrar una nueva definición de tarea.
           cat updated-task-definition.json \
-            | jq 'del(.status, .compatibilities, .requiresAttributes)' \
+            | jq 'del(.taskDefinitionArn, .revision, .status, .compatibilities, .requiresAttributes, .registeredAt, .registeredBy, .deregisteredAt)' \
             > final-task-definition.json
 
           # Registrar una nueva revisión de la definición de la tarea
